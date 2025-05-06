@@ -15,6 +15,27 @@ app.get('/',function(req , res){
     res.render('index')
     
 })
+app.get('/login',(req,res)=>{
+    res.render("login")
+})
+app.get('/profile', isLoggedin ,async (req,res)=>{
+    let user = await userModel.findOne({email : req.user.email}).populate("posts")
+    
+    res.render("profile",{user})
+    
+})
+app.post('/post', isLoggedin ,async (req,res)=>{
+    let user = await userModel.findOne({email : req.user.email})
+    let {content} = req.body
+    let post = await postModel.create({
+        user: user._id,
+        content
+    })
+     user.posts.push(post._id)
+     await user.save();
+     res.redirect("/profile")
+})
+
 app.post('/create',async function(req , res){
     let {username, email ,password,age}=req.body
     let user = await userModel.findOne({email:email })
@@ -34,28 +55,29 @@ app.post('/create',async function(req , res){
         })
     })
 })
-
 app.post("/login",async function(req, res){
   let {email,password} =req.body;
   let user= await userModel.findOne({email})
+  if(!user) return res.status(500).send("something went wrong")
   bcrypt.compare(password, user.password, function(err, result){
    if(result) {
-    let token = jwt.sign({email:email,userid : Createduser._id},"meowmeow")
-   res.cookie("token",token)
-    res.status(200).send("you can log in");
+    let token = jwt.sign({email:email,userid :user._id},"meowmeow")
+    res.cookie("token",token)
+    res.status(200).redirect("/profile");
    }
+   else res.redirect("/login")
   }) 
 })
 app.get("/logout",function(req,res){
     res.cookie("token","")
     res.redirect("/login")
 })
-
 function isLoggedin(req, res , next){
-    if(req.cookies.token === "") redirect ("you must be logged in")
+    if(req.cookies.token === "") return res.redirect("/login")
         else{
             let data=  jwt.verify(req.cookies.token, "meowmeow") 
             req.user =data;
             }
+            next();
 }
 app.listen(3000)
